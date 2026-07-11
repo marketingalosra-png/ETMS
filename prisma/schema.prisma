@@ -1,0 +1,301 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  DEACTIVATED
+}
+
+enum Gender {
+  FEMALE
+  MALE
+  OTHER
+  UNDISCLOSED
+}
+
+enum TrainingDifficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TrainingStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AssetType {
+  VIDEO_UPLOAD
+  VIDEO_YOUTUBE
+  VIDEO_EXTERNAL
+  PDF
+  WORD
+  POWERPOINT
+  IMAGE
+  ZIP
+  LINK
+}
+
+enum AssignmentStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  COMPLETED_EARLY
+  COMPLETED_ON_TIME
+  COMPLETED_LATE
+  LATE
+  VERY_LATE
+  OVERDUE
+  EXPIRED
+}
+
+enum CompletionCriteria {
+  WATCH_95_PERCENT
+  OPEN_ALL_ASSETS
+  PASS_ACKNOWLEDGEMENT
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  username           String?   @unique
+  email              String?   @unique
+  employeeId         String?   @unique
+  passwordHash       String
+  role               Role      @default(EMPLOYEE)
+  mustChangePassword Boolean   @default(false)
+  lastLoginAt        DateTime?
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  employee      Employee?
+  sessions      Session[]
+  accounts      Account[]
+  activities    ActivityLog[]
+
+  @@index([role, isActive])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Department {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  description String?
+  managerName String?
+  color       String     @default("#2563eb")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  employees   Employee[]
+
+  @@index([name])
+}
+
+model Employee {
+  id               String         @id @default(cuid())
+  userId           String         @unique
+  departmentId     String?
+  fullName         String
+  employeeCode     String         @unique
+  jobTitle         String
+  manager          String?
+  phone            String?
+  nationalId       String?        @unique
+  joiningDate      DateTime
+  birthDate        DateTime?
+  gender           Gender         @default(UNDISCLOSED)
+  address          String?
+  emergencyContact String?
+  notes            String?
+  photoUrl         String?
+  status           EmployeeStatus @default(ACTIVE)
+  xp               Int            @default(0)
+  level            Int            @default(1)
+  streakDays       Int            @default(0)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department    Department?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  assignments   Assignment[]
+  watchSessions WatchSession[]
+
+  @@index([departmentId, status])
+  @@index([employeeCode])
+  @@index([fullName])
+}
+
+model Training {
+  id                  String               @id @default(cuid())
+  title               String
+  description         String
+  category            String
+  difficulty          TrainingDifficulty   @default(BEGINNER)
+  estimatedMinutes    Int
+  dueDate             DateTime?
+  thumbnailUrl        String?
+  priority            Priority             @default(MEDIUM)
+  status              TrainingStatus       @default(PUBLISHED)
+  tags                String[]
+  completionCriteria  CompletionCriteria   @default(WATCH_95_PERCENT)
+  createdById         String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  assets      TrainingAsset[]
+  assignments Assignment[]
+
+  @@index([category, status])
+  @@index([priority])
+  @@index([dueDate])
+  @@index([title])
+}
+
+model TrainingAsset {
+  id              String    @id @default(cuid())
+  trainingId      String
+  type            AssetType
+  title           String
+  url             String
+  fileName        String?
+  mimeType        String?
+  sizeBytes       Int?
+  durationSeconds Int?
+  sortOrder       Int       @default(0)
+  createdAt       DateTime  @default(now())
+
+  training      Training       @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  watchSessions WatchSession[]
+
+  @@index([trainingId, type])
+}
+
+model Assignment {
+  id               String           @id @default(cuid())
+  employeeId       String
+  trainingId       String
+  assignedById     String?
+  status           AssignmentStatus @default(NOT_STARTED)
+  progressPercent  Float            @default(0)
+  timeWatchedSec   Int              @default(0)
+  startedAt        DateTime?
+  completedAt      DateTime?
+  dueDate          DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  employee       Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  training       Training        @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  progressEvents ProgressEvent[]
+
+  @@unique([employeeId, trainingId])
+  @@index([status, dueDate])
+  @@index([employeeId, status])
+  @@index([trainingId, status])
+}
+
+model WatchSession {
+  id               String   @id @default(cuid())
+  employeeId       String
+  assetId          String
+  lastSecond       Int      @default(0)
+  watchedSeconds   Int      @default(0)
+  durationSeconds  Int      @default(0)
+  percentWatched   Float    @default(0)
+  playbackRate     Float    @default(1)
+  pausedCount      Int      @default(0)
+  skippedCount     Int      @default(0)
+  replayedCount    Int      @default(0)
+  completed        Boolean  @default(false)
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
+
+  employee Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  asset    TrainingAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, assetId])
+  @@index([completed, percentWatched])
+}
+
+model ProgressEvent {
+  id           String     @id @default(cuid())
+  assignmentId String
+  type         String
+  value        Json?
+  createdAt    DateTime   @default(now())
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@index([assignmentId, createdAt])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  actorName String
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([action, createdAt])
+  @@index([entity, entityId])
+  @@index([userId, createdAt])
+}
