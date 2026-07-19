@@ -35,6 +35,7 @@ const adminNav: NavItem[] = [
   { href: "/admin/employees", label: "Employees", icon: Users },
   { href: "/admin/trainings", label: "Trainings", icon: BookOpen },
   { href: "/admin/assignments", label: "Assignments", icon: ClipboardList },
+  { href: "/admin/completed-trainings", label: "Completed Trainings", icon: ShieldCheck },
   { href: "/admin/settings", label: "Settings", icon: Settings }
 ];
 

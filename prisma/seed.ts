@@ -150,7 +150,8 @@ async function main() {
         difficulty: index > 1 ? "INTERMEDIATE" : "BEGINNER",
         dueDate: new Date(Date.now() + (index + 5) * 24 * 60 * 60 * 1000),
         thumbnailUrl: thumbnails[index],
-        status: "PUBLISHED"
+        status: "PUBLISHED",
+        completionCriteria: "PASS_ACKNOWLEDGEMENT"
       }
     });
 
@@ -197,7 +198,9 @@ async function main() {
             timeWatchedSec: Math.round((training.estimatedMinutes * 60 * progress) / 100),
             startedAt: progress > 0 ? new Date(Date.now() - 5 * 24 * 60 * 60 * 1000) : null,
             completedAt: completed ? new Date(Date.now() - 1 * 24 * 60 * 60 * 1000) : null,
-            dueDate: training.dueDate
+            dueDate: training.dueDate,
+            learningSummary: completed ? "I learned key training concepts and safety guidelines during this course." : null,
+            reviewStatus: completed ? "PENDING_REVIEW" : null
           }
         });
       }

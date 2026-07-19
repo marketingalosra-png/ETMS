@@ -238,6 +238,13 @@ model Assignment {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
+  learningSummary String?
+  completionNotes String?
+  reviewStatus    String?   // PENDING_REVIEW | APPROVED | REJECTED | RESUBMISSION_REQUESTED
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  reviewNote      String?
+
   employee       Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   training       Training        @relation(fields: [trainingId], references: [id], onDelete: Cascade)
   progressEvents ProgressEvent[]

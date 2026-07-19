@@ -337,6 +337,12 @@ export type AssignmentDTO = {
   startedAt: string | null;
   completedAt: string | null;
   dueDate: string | null;     // ISO string
+  learningSummary: string | null;
+  completionNotes: string | null;
+  reviewStatus: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
   createdAt: string;
   updatedAt: string;
   employee: EmployeeDTO | null;
@@ -353,6 +359,12 @@ export function toAssignmentDTO(assignment: {
   startedAt?: Date | null;
   completedAt?: Date | null;
   dueDate?: Date | null;
+  learningSummary?: string | null;
+  completionNotes?: string | null;
+  reviewStatus?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: Date | null;
+  reviewNote?: string | null;
   createdAt: Date;
   updatedAt: Date;
   employee?: Parameters<typeof toEmployeeDTO>[0] | null;
@@ -368,6 +380,12 @@ export function toAssignmentDTO(assignment: {
     startedAt: toIso(assignment.startedAt),
     completedAt: toIso(assignment.completedAt),
     dueDate: toIso(assignment.dueDate),
+    learningSummary: assignment.learningSummary ?? null,
+    completionNotes: assignment.completionNotes ?? null,
+    reviewStatus: assignment.reviewStatus ?? null,
+    reviewedBy: assignment.reviewedBy ?? null,
+    reviewedAt: toIso(assignment.reviewedAt),
+    reviewNote: assignment.reviewNote ?? null,
     createdAt: toIso(assignment.createdAt)!,
     updatedAt: toIso(assignment.updatedAt)!,
     employee: assignment.employee ? toEmployeeDTO(assignment.employee) : null,

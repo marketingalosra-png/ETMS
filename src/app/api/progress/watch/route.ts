@@ -9,29 +9,48 @@ export async function POST(request: NextRequest) {
   return withApiGuard(request, async () => {
     const session = await auth();
     const input = await parseBody(request, progressSchema);
-    const employee = await prisma.employee.findUnique({ where: { userId: session!.user.id } });
-    if (!employee && session?.user.role !== "ADMIN") return json({ error: "Employee profile not found" }, { status: 404 });
+    const employee = await prisma.employee.findUnique({
+      where: { userId: session!.user.id },
+    });
+    if (!employee && session?.user.role !== "ADMIN") {
+      return json({ error: "Employee profile not found" }, { status: 404 });
+    }
 
     const assignment = await prisma.assignment.findUnique({
       where: { id: input.assignmentId },
-      include: { employee: true, training: true }
+      include: { employee: true, training: true },
     });
-    if (!assignment) return json({ error: "Assignment not found" }, { status: 404 });
-    if (session?.user.role === "EMPLOYEE" && assignment.employee.userId !== session.user.id) return json({ error: "Forbidden" }, { status: 403 });
+    if (!assignment) {
+      return json({ error: "Assignment not found" }, { status: 404 });
+    }
+    if (
+      session?.user.role === "EMPLOYEE" &&
+      assignment.employee.userId !== session.user.id
+    ) {
+      return json({ error: "Forbidden" }, { status: 403 });
+    }
 
-    const percentWatched = Math.min(100, (input.watchedSeconds / input.durationSeconds) * 100);
-    const completed = percentWatched >= 95;
-    const status = completed
-      ? assignment.dueDate && new Date() > assignment.dueDate
-        ? "COMPLETED_LATE"
-        : "COMPLETED_ON_TIME"
+    const percentWatched = Math.min(
+      100,
+      (input.watchedSeconds / input.durationSeconds) * 100
+    );
+
+    // Never auto-complete — completion requires employee confirmation + summary
+    const alreadyCompleted = assignment.completedAt !== null;
+    const status = alreadyCompleted
+      ? assignment.status
       : assignment.startedAt
         ? "IN_PROGRESS"
         : "IN_PROGRESS";
 
     await prisma.$transaction([
       prisma.watchSession.upsert({
-        where: { employeeId_assetId: { employeeId: assignment.employeeId, assetId: input.assetId } },
+        where: {
+          employeeId_assetId: {
+            employeeId: assignment.employeeId,
+            assetId: input.assetId,
+          },
+        },
         update: {
           lastSecond: input.lastSecond,
           watchedSeconds: Math.max(input.watchedSeconds, 0),
@@ -41,7 +60,8 @@ export async function POST(request: NextRequest) {
           skippedCount: { increment: input.skippedCount },
           replayedCount: { increment: input.replayedCount },
           playbackRate: input.playbackRate,
-          completed
+          // Only mark watch session as completed at 95%+
+          completed: percentWatched >= 95,
         },
         create: {
           employeeId: assignment.employeeId,
@@ -54,32 +74,38 @@ export async function POST(request: NextRequest) {
           pausedCount: input.pausedCount,
           skippedCount: input.skippedCount,
           replayedCount: input.replayedCount,
-          completed
-        }
+          completed: percentWatched >= 95,
+        },
       }),
       prisma.assignment.update({
         where: { id: assignment.id },
         data: {
-          progressPercent: Math.max(assignment.progressPercent, percentWatched),
-          timeWatchedSec: Math.max(assignment.timeWatchedSec, input.watchedSeconds),
+          progressPercent: Math.max(
+            assignment.progressPercent,
+            percentWatched
+          ),
+          timeWatchedSec: Math.max(
+            assignment.timeWatchedSec,
+            input.watchedSeconds
+          ),
           startedAt: assignment.startedAt ?? new Date(),
-          completedAt: completed ? assignment.completedAt ?? new Date() : assignment.completedAt,
-          status
-        }
+          // Never overwrite completedAt here — only /complete endpoint does that
+          status: alreadyCompleted ? assignment.status : status,
+        },
       }),
       prisma.progressEvent.create({
         data: {
           assignmentId: assignment.id,
-          type: completed ? "video.completed" : "video.progress",
-          value: { percentWatched, lastSecond: input.lastSecond }
-        }
-      })
+          type: "video.progress",
+          value: { percentWatched, lastSecond: input.lastSecond },
+        },
+      }),
     ]);
 
-    if (completed && !assignment.completedAt) {
-      await audit({ userId: session?.user.id, actorName: session?.user.name ?? assignment.employee.fullName, action: "training.completed", entity: "Assignment", entityId: assignment.id });
-    }
-
-    return json({ completed, percentWatched });
+    return json({
+      percentWatched,
+      // Signal to the client that the completion form should unlock
+      readyToComplete: percentWatched >= 95 && !alreadyCompleted,
+    });
   });
 }
